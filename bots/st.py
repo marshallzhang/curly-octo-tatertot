@@ -88,7 +88,11 @@ class STBot(BaseBot):
             return(tender_offer.price < (hypPrice/tender_offer.quantity)) #is it more than?! price that we buy at is less than what it would be
                 
     def how_to_hedge(self):
-        return None
+        betas = {u'FNB': 0.7, u'WTF': -0.4, u'TC': 1.5, u'BBN': 0.2}
+        #get percent of portfolio per ticker 
+        print("HOW TO HEDGE")
+        print(self.positions)
+        #totalPortfolio = 
         
         # IN THEORY INPUT POSITIONS AND OUTPUT SHARES TO BUY/SELL OF TAMIT
         # TODO
@@ -112,7 +116,8 @@ class STBot(BaseBot):
                                 msg['tender_offer']['quantity'], 
                                 msg['tender_offer']['buy'])
             #DO SHIT HERE 
-            print(self.accept_tender(offer, 0.50))
+            #print(self.accept_tender(offer, 0.50))
+            print(self.how_to_hedge)
             # this should return T//F self.accept_tender(offer, 5.00)
 
 
