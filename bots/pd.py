@@ -106,6 +106,7 @@ class PDBot(BaseBot):
         if msg.get('news'):
             body = msg['news']['body'].split('; ')
             body = [float(x.split(" estimated to be worth ")[1]) for x in body]
+            # REARRANGE BODY SO THAT THE PRICES ARE ALWAYS IN THE ORDER AS IN SELF.TICKERS alice
             self.news_releases.extend([NewsRelease(msg['news']['source'], msg['news']['time'], body)])
             if msg['news']['source'] not in self.sources:
                 self.sources.extend([msg['news']['source']])
