@@ -2,10 +2,10 @@ from base import *
 
 pp = pprint.PrettyPrinter(depth = 6)
 
-def N(x, mean, sd):
+def N(x, mean=0, sd=1):
     return((1.0 + math.erf((float(x) - mean) / (float(sd) * sqrt(2.0)))) / 2)
 
-def Np(x, mean, sd):
+def Np(x, mean=0, sd=1):
     var = float(sd)**2
     pi = 3.1415926
     denom = (2*pi*var)**.5
@@ -30,41 +30,76 @@ class OptionSec():
         self.S = 0.
         self.t = 0.
         self.IV = 0.
+        self.T = 7.5
+
 
     def update(self, bids, asks, lastPrice, underPrice, time):
         self.order_book = OrderBook(bids, asks)
-        self.lastPrice = lastPrice
-        self.underPrice = underPrice
-        self.t = time
+        self.P = lastPrice
+        self.S = underPrice
+        self.t = time/60.
 
-    def d1(self, K, r = 0, sigma, t):
-        top = math.log(self.S/self.K) + (r+(float(sigma)**2/float(2)))(T-t)
-        bottom = sigma * math.sqrt(T-t)
-        d1 = top/bottom 
+    def d1(self, sigma):
+        top = math.log(self.S/float(self.K)) + ((float(sigma)**2)/2.)*float(self.T-self.t)
+        bottom = float(sigma)* math.sqrt(self.T-self.t)
+        d1 = top/float(bottom)
         return(d1)
 
-    def d2(d1, sigma, t):
-    d2 = d1 - sigma * math.sqrt(T-t)
+    def d2(self, sigma):
+        d2 = float(self.d1) - sigma * math.sqrt(self.T-self.t)
+        return(d2)
 
 
 
 class Call(OptionSec):
-    def BS(S, K, t, sigma):
-        d1 = math.log(S / float(K))
+    def BS(self, sigma):
+        C = N(self.d1(sigma))*self.S - N(self.d2(sigma)) * self.K
+        return(C)
 
-    def delta(self):
+    def delta(self, sigma):
+        return(N(self.d1(sigma)))
 
-    def gamma(self):
+    def gamma(self, sigma ):
+        top = Np(self.d1(sigma))
+        bottom = self.S * float(sigma) * math.sqrt(self.T - self.t)
+        gamma = top/bottom 
+        return(gamma)
 
-    def vega(self):
+    def vega(self, sigma):
+        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.T)
+        return(veg)
 
-    def theta(self):
+    def theta(self, sigma):
+        top = -self.S * Np(self.d1(sigma)) * sigma 
+        bottom = 2*math.sqrt(self.T - self.t)
+        return(top/bottom)
 
     def updateIV(self):
         init_sig = math.sqrt(2 * 3.14 / 
 
 
 class Put(OptionSec):
+     def BS(self, sigma):
+        P = N(-1.*self.d2(sigma)) * self.K - N(-1.*self.d1(sigma)) * self.S
+        return(P)
+
+    def delta(self, sigma):
+        return(N(self.d1(sigma)))
+
+    def gamma(self, sigma ):
+        top = Np(self.d1(sigma))
+        bottom = self.S * float(sigma) * math.sqrt(self.T - self.t)
+        gamma = top/bottom * N(self.d1(sigma))
+        return(gamma)
+
+    def vega(self, sigma):
+        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.T)
+        return(veg)
+
+    def theta(self, sigma):
+        top = -self.S * Np(self.d1(sigma)) * sigma 
+        bottom = 2*math.sqrt(self.T - self.t)
+        return(top/bottom)
 
 class OPBot(BaseBot):
 
