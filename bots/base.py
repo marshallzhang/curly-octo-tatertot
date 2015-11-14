@@ -102,7 +102,39 @@ class OrderBook():
             return(self.offers[0])
 
     def update(self, trade):
-        # todo
+        #USEFUL CODE IN THE FUTURE
+        #amt = trade.quantity
+        # if trade.price == self.bestBid:
+        #     amt = trade.quantity
+        #     while amt >0: 
+        #         for bid in self.bids: 
+        #             amt = amt - bid.q
+        #             if amt > 0: 
+        #                 bid.q = 0 
+        #             else: 
+        #                 bid.q = abs(amt)
+        # else: 
+        #     #if trade.price == self.bestOffer:
+        #     while amt >0: 
+        #         for offer in self.offers: 
+        #             amt = amt - offer.q
+        #             if amt > 0: 
+        #                 offer.q = 0 
+        #             else: 
+        #                 offer.q = abs(amt)
+
+        # if trade.price == self.bestBid().p:
+        #     print('hello')
+        #     self.bestBid().q = self.bestBid().q - trade.quantity
+        #     new_orderBids = [bid for bid in self.bids if not bid.q == 0]            
+        # else:
+        #     self.bestOffer().q = self.bestOffer().q - trade.quantity
+        #     new_orderOffers = [offer for offer in self.offers if not offer.q == 0]
+        # self.bids = new_orderBids
+        # self.offers = new_orderOffers
+
+        #delete all the order book lines with 0 
+
         return 1
 
     def __repr__(self):
@@ -139,6 +171,7 @@ class BaseBot(object):
 
         self.lastPrices = {}
         self.positions = {}
+        self.order_books = {}
 
         register_msg = dumps({
             'message_type': 'REGISTER',
@@ -190,26 +223,60 @@ class BaseBot(object):
     # Feel free to modify this method according to how
     # you want to keep track of your internal state.
     def update_state(self, msg):
-        # Update internal positions
-        if msg.get('trader_state'):
-            self.positions = msg['trader_state']['positions']
+        try:
+            # Update internal positions
+            if msg.get('trader_state'):
+                self.positions = msg['trader_state']['positions']
 
-        # Update internal books for each ticker
-        if msg.get('market_states'):
-            for ticker, state in msg['market_states'].iteritems():
+            # Update internal books for each ticker
+            if msg.get('market_states'):
+                for ticker, state in msg['market_states'].iteritems():
+                    self.lastPrices[ticker] = state['last_price']
+
+            if msg.get('market_state'):
+                state = msg['market_state']
+                ticker = state['ticker']
                 self.lastPrices[ticker] = state['last_price']
-                
-        if msg.get('market_state'):
-            state = msg['market_state']
-            ticker = state['ticker']
-            self.lastPrices[ticker] = state['last_price']
 
-        if msg.get('message_type') == 'START':
-            self.started = True
-        elif msg.get('end_time'):
-            if not msg.get('end_time').startswith('0001'):
+            # Update internal books for each ticker
+            # if msg.get('market_states'):
+            #     for ticker, state in msg['market_states'].iteritems():
+            #         if not self.order_books:
+            #             self.order_books[ticker] = OrderBook(state['bids'], state['asks'])
+            #         else:
+            #             print self.order_books[ticker] == OrderBook(state['bids'], state['asks'])
+            #             self.order_books[ticker] = OrderBook(state['bids'], state['asks'])
+
+            # Update internal book for a single ticker
+            # if msg.get('market_state'):
+            #     state = msg['market_state']
+            #     ticker = state['ticker']
+            #     if not self.order_books:
+            #         self.order_books[ticker] = OrderBook(state['bids'], state['asks'])
+            #     else:
+            #         print self.order_books[ticker] == OrderBook(state['bids'], state['asks'])
+            #         self.order_books[ticker] = OrderBook(state['bids'], state['asks'])
+
+            # if msg.get('trades'):
+            #     trades = msg['trades']
+            #     for trade in trades:
+            #         t = Trade(trade['ticker'], trade['price'], trade['quantity'])
+            #         print "OLD"
+            #         print trade['ticker']
+            #         print self.order_books[trade['ticker']]
+            #         print(trade)
+            #         self.order_books[trade['ticker']].update(t)
+            #         print "NEW"
+            #         print self.order_books[trade['ticker']]
+
+            if msg.get('message_type') == 'START':
                 self.started = True
+            elif msg.get('end_time'):
+                if not msg.get('end_time').startswith('0001'):
+                    self.started = True
 
+        except:
+            x=0
     # Processes the messages received from the server.
     # This BaseBot process only updates the bot's state
     # with server updates. To execute your own strategies,
@@ -217,6 +284,7 @@ class BaseBot(object):
     def process(self, msg):
         if msg is not None:
             self.update_state(msg)
+        #os.system('cls' if os.name == 'nt' else 'clear')
         return None
 
 
