@@ -8,9 +8,19 @@ class FXBot(BaseBot):
     # update this init function as necessary.
     def __init__(self):
         super(FXBot, self).__init__()
+        self.order_books = {}
 
     # An example market making strategy.
     # Returns the orders the bots should execute.
+    def penny(self):
+        return 0
+
+    def scale(self):
+        return 0
+
+    def take(self):
+        return 0
+        
     def marketMake(self):
         orders = []
 

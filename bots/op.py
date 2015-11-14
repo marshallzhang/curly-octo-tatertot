@@ -71,10 +71,13 @@ class Call(OptionSec):
 
     def updateIV(self):
         init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
-        try:
-            self.IV = scipy.optimize.minimize(self.optBS, init_sig).x
-        except:
-            self.IV = 0.
+        if self.t > 7.5 or self.t < 0.1:
+            self.IV = 2.
+        else:
+            for i in range(50):
+                init_sig = init_sig - ((self.BS(init_sig) - self.P) / self.vega(init_sig))
+                print init_sig
+            self.IV = init_sig
 
 class Put(OptionSec):
 
@@ -170,6 +173,34 @@ class OPBot(BaseBot):
             return(todo2)
         return None
 
+    def getCall(self, ticker):
+        return(self.call_ladder[self.getK(ticker)])
+    
+    def getPut(self, ticker):
+        return(self.put_ladder[self.getK(ticker)])
+
+    def portGreeks(self):
+        delta = 0.
+        vega = 0.
+        print self.positions.items()
+        for ticker, quantity in self.positions.items():
+            if ticker == "TMXFUT":
+                delta += quantity
+            else:
+                try:
+                    if self.isCall(ticker):
+                        call = self.getCall(ticker)
+                        delta += call.delta(call.IV) * quantity
+                        vega += call.vega(call.IV) * quantity
+                    else:
+                        put = self.getPut(ticker)
+                        delta += put.delta(put.IV) * quantity
+                        vega += put.vega(put.IV) * quantity
+                except:
+                    delta = delta
+                    vega = vega
+        return {"delta" : delta, "vega" : vega}
+
     def pd_update_state(self, msg):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
@@ -229,11 +260,15 @@ class OPBot(BaseBot):
         if msg is not None:
             self.pd_update_state(msg)
             arbs = self.pcParity()
+            greeks = self.portGreeks()
+
 
             # PRINT DASHBOARD
             os.system('cls' if os.name == 'nt' else 'clear')
             try:
                 print((" " * 32 + "TAMIT: ")  + ("%.0f" % (self.lastPrices["TAMITINDEX"])))
+                c = self.call_ladder[90]
+                print(c.S, c.K, c.t, c.P)
             except:
                 x = 0
             topcalls = '{0: >30}'.format("CALLS")
@@ -246,7 +281,9 @@ class OPBot(BaseBot):
             for arb in arbs.values():
                 print arb
 
-
+            print(" " * 17 + "PORTFOLIO GREEKS")
+            for k,v in greeks.items():
+                print(k,v)
         return None
 
 
