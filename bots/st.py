@@ -21,6 +21,8 @@ class STBot(BaseBot):
         super(STBot, self).__init__()
         self.order_books = {}
         self.portfolio_beta = 0.
+        self.current_tender = {}
+        self.accept_or_not = False
 
     def accept_tender(self, tender_offer, edge):
         #return(tender_offer.price)
@@ -92,26 +94,19 @@ class STBot(BaseBot):
         betas = {u'FNB': 0.7, u'WTF': -0.4, u'TC': 1.5, u'BBN': 0.2}
         #get percent of portfolio per ticker 
         print("HOW TO HEDGE")
-        print("last prices")
-        print(self.lastPrices)
         sizeDollars = {k : v * self.lastPrices[k] for k,v in self.positions.items() if k in self.lastPrices}
-        print(sizeDollars)
         portPrice = sum(sizeDollars.values())
         sizeProp = {u'FNB': 0.0, u'WTF': -0.0, u'TC': 0.0, u'BBN': 0.0}
         if float(portPrice) !=0: 
             sizeProp = {k: v/float(portPrice) for k,v in sizeDollars.items()}
-            print("proportion")
-            print(sizeProp)
 
         portBetas = {k : v * betas[k] for k,v in sizeProp.items() if k in betas}
-        print('betas')
-        print(betas)
         print('portfolio beta')
         print(portBetas)
         totalBeta = sum(portBetas.values())
         self.portfolio_beta = totalBeta
         quantTAMIT = round(totalBeta * portPrice / float(self.lastPrices[u'TAMIT'])) - self.positions[u'TAMIT']
-        print(quantTAMIT)
+        return(quantTAMIT)
         
         # IN THEORY INPUT POSITIONS AND OUTPUT SHARES TO BUY/SELL OF TAMIT
         # TODO
@@ -135,8 +130,9 @@ class STBot(BaseBot):
                                 msg['tender_offer']['quantity'], 
                                 msg['tender_offer']['buy'])
             #DO SHIT HERE 
-            #print(self.accept_tender(offer, 0.50))
-            print(self.how_to_hedge())
+            self.current_tender = {"ticker" : offer.ticker, "price" : offer.price}
+            self.accept_or_not = self.accept_tender(offer, 0.)
+            
             # this should return T//F self.accept_tender(offer, 5.00)
 
 
@@ -159,11 +155,15 @@ class STBot(BaseBot):
         if msg is not None:
             self.st_update_state(msg)
         try:
-            self.how_to_hedge()
+            hedge_ratio = self.how_to_hedge()
+            os.system('cls' if os.name == 'nt' else 'clear')
+            print("CURRENT OFFER: " + repr(self.current_tender))
+            print("ACCEPT OR NOT: " + repr(self.accept_or_not))
+            print("TO HEDGE: " + str(hedge_ratio))
         except:
             x = 0
         print(self.portfolio_beta)
-        #os.system('cls' if os.name == 'nt' else 'clear')
+
         #pp.pprint(self.order_books)
 
         return None
