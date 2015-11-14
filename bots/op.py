@@ -161,12 +161,13 @@ class OPBot(BaseBot):
         right1 = self.tamit.bestOffer().p - call.K 
         if left1 > right1: 
             #TO DO BUY RIGHT, SELL K 
-            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy',"edge": left1 - right1}
+            
+            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'BUY',left1 - right1: "edge"}
             return(todo1)
         left2 = call.order_book.bestOffer().p - put.order_book.bestBid().p
         right2 = self.tamit.bestBid().p - call.K 
         if left2 < right2: 
-            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'sell', "edge": left2 - right2}
+            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'SELL', left2 - right2 : "edge"  }
             return(todo2)
         return None
 
@@ -243,8 +244,39 @@ class OPBot(BaseBot):
                 puts = '{0: <17}'.format("(%.2f, %.2f)" % (put.IV * 100, put.P))
                 print calls +  "  | " + '{0: <7}'.format(str(call.K)) + "|  " + puts
             print((" " * 17 + "PUT CALL PARITY "))
-            for arb in arbs.values():
-                print arb
+            #for arb in arbs.values():
+                #print arb
+            topline = '{0: >30}'.format("BUY")
+            print topline + " " * 10 + "SELL" + " " * 10 + "EDGE"
+            
+            try:
+                print(sorted(arbs.values(), key = lambda x : x["edge"]))
+                for todo in sorted(arbs.values(), key = lambda x : x["edge"]): #arb.values() is a list
+                    #print(arbs.values())
+                    buysellDict = dict(zip(todo.values(), todo.keys()))
+                    if 'BUY' in buysellDict.keys():
+                        buys = '{0: >30}'.format(buysellDict['buy'] + buysellDict['BUY'])
+                    else: 
+                        buys = '{0: >30}'.format(buysellDict['buy'])
+                    if 'SELL' in buysellDict.keys():
+                        sells = '{0: >17}'.format(buysellDict['sell'] + buysellDict['SELL'])
+                    else: 
+                        sells = '{0: >17}'.format(buysellDict['sell'])
+                    edge = '{0: >7}'.format(buysellDict['edge'])
+                    print buys + " | " +  sells + " | " + edge
+                    
+
+            except:
+                x = 0
+            # for call, put in zip(sorted(self.call_ladder.values(), key = lambda x : x.K), sorted(self.put_ladder.values(), key = lambda x : x.K)):
+            #     calls = '{0: >30}'.format("(%.2f, %.2f)" % (call.P, call.IV * 100))
+            #     puts = '{0: <17}'.format("(%.2f, %.2f)" % (put.IV * 100, put.P))
+            #     print calls +  "  | " + '{0: <7}'.format(str(call.K)) + "|  " + puts
+
+
+            #PC arb dashboard 
+
+
 
 
         return None
