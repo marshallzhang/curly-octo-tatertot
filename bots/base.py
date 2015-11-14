@@ -76,11 +76,10 @@ class Offer(Order):
         return(str(self.q) + " offered at " + str(self.p))
 
 class Trade():
-    def __init__(self, ticker, price, quantity, buy):
+    def __init__(self, ticker, price, quantity):
         self.ticker = ticker
         self.price = price
         self.quantity = quantity
-        self.buy = buy
 
 class OrderBook():
     def __init__(self, bids, offers):
