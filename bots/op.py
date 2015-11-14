@@ -24,12 +24,12 @@ class OptionSec():
         self.IV = 0.
         self.T = 7.5
 
-
     def update(self, bids, asks, lastPrice, underPrice, time):
         self.order_book = OrderBook(bids, asks)
         self.P = lastPrice
         self.S = underPrice
         self.t = time/60.
+        self.updateIV()
 
     def d1(self, sigma):
         top = math.log(self.S/float(self.K)) + ((float(sigma)**2)/2.)*float(self.T-self.t)
@@ -51,7 +51,7 @@ class Call(OptionSec):
     def delta(self, sigma):
         return(N(self.d1(sigma)))
 
-    def gamma(self, sigma ):
+    def gamma(self, sigma):
         top = Np(self.d1(sigma))
         bottom = self.S * float(sigma) * math.sqrt(self.T - self.t)
         gamma = top/bottom 
@@ -78,10 +78,10 @@ class Put(OptionSec):
     def delta(self, sigma):
         return(N(self.d1(sigma)))
 
-    def gamma(self, sigma ):
+    def gamma(self, sigma):
         top = Np(self.d1(sigma))
         bottom = self.S * float(sigma) * math.sqrt(self.T - self.t)
-        gamma = top/bottom * N(self.d1(sigma))
+        gamma = (top/bottom) * N(self.d1(sigma))
         return(gamma)
 
     def vega(self, sigma):
@@ -93,6 +93,10 @@ class Put(OptionSec):
         bottom = 2*math.sqrt(self.T - self.t)
         return(top/bottom)
 
+    def updateIV(self):
+        init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
+        self.IV = scipy.optimize.newton(self.BS, init_sig, tol = 1.0e-6,  maxiter=50, fprime = self.vega)
+
 class OPBot(BaseBot):
 
     # If you want to keep track of any information in
@@ -100,18 +104,28 @@ class OPBot(BaseBot):
     # update this init function as necessary.
     def __init__(self):
         super(OPBot, self).__init__()
-        self.call_ladder = {"T90C" : Call("T90C", 90),
-                            "T95C" : Call("T95C", 95),
-                            "T100C" : Call("T100C", 100),
-                            "T110C" : Call("T100C", 100),
-                            "T100C" : Call("T100C", 100),
+        self.call_ladder = {90 : Call("T90C", 90.),
+                            95 : Call("T95C", 95.),
+                            100 : Call("T100C", 100.),
+                            105 : Call("T105C", 105.),
+                            110 : Call("T110C", 110.)
         }
-        self.put_ladder = {}
-        self.tamit = OrderBook()
+
+        self.put_ladder = {90 : Put("T90P", 90.),
+                            95 : Put("T95P", 95.),
+                            100 : Put("T100P", 100.),
+                            105 : Put("T105P", 105.),
+                            110 : Put("T110P", 110.)
+        }
+
+        self.tamit = []
 
     
     def isCall(self, ticker):
         return(ticker.endswith("C"))
+    
+    def getK(self, ticker):
+        return(int(ticker[1:-1]))
 
     def update_state(self, msg):
         super(OPBot, self).update_state(msg)
@@ -125,21 +139,39 @@ class OPBot(BaseBot):
     def pd_update_state(self, msg):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
-                if self.isCall(ticker):
-                    self.call_ladder[ticker] = OrderBook(state['bids'], state['asks'])
+                if ticker == "TMXFUT":
+                    self.tamit = OrderBook(state['bids'], state['asks'])
                 else:
-                    self.put_ladder[ticker] = OrderBook(state['bids'], state['asks'])
+                    if self.isCall(ticker):
+                        self.call_ladder[getK(ticker)].update(state['bids'], 
+                                                              state['asks'], 
+                                                              self.lastPrice[ticker], 
+                                                              self.lastPrice["TMXFUT"], 
+                                                              state['time'])
+                    else:
+                        self.put_ladder[getK(ticker)].update(state['bids'], 
+                                                             state['asks'], 
+                                                             self.lastPrice[ticker], 
+                                                             self.lastPrice["TMXFUT"], 
+                                                             state['time'])
         if msg.get('market_state'):
             state = msg['market_stsate']
             ticker = state['ticker'][1:]
-            if self.isCall(state['ticker']):
-                self.calls[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+            if ticker == "TMXFUT":
+                self.tamit = OrderBook(state['bids'], state['asks'])
             else:
-                self.puts[ticker[1:]] = OrderBook(state['bids'], state['asks'])
-
-        if msg.get('news'):
-            body = msg['news']['body'].split('; ')
-            body = [float(x.split(" estimated to be worth ")[1]) for x in body]
+                if self.isCall(ticker):
+                    self.call_ladder[getK(ticker)].update(state['bids'], 
+                                                          state['asks'], 
+                                                          self.lastPrice[ticker], 
+                                                          self.lastPrice["TMXFUT"], 
+                                                          state['time'])
+                else:
+                    self.put_ladder[getK(ticker)].update(state['bids'], 
+                                                         state['asks'], 
+                                                         self.lastPrice[ticker], 
+                                                         self.lastPrice["TMXFUT"], 
+                                                         state['time'])
 
     # Overrides the BaseBot process function.
     # Modify this function if you want your bot to
@@ -149,52 +181,6 @@ class OPBot(BaseBot):
         if msg is not None:
             self.pd_update_state(msg)
         os.system('cls' if os.name == 'nt' else 'clear')
-        print(str(self.accept) + "\n")
-        n = len(self.news_releases)
-        weights = np.array([r / float(n) for r in range(1,n+1)])
-        weights = weights / np.sum(weights)
-        for i in range(len(self.tickers)):
-            lo = self.true_prices[i] - self.ses[i]
-            hi = self.true_prices[i] + self.ses[i]
-            estim = self.true_prices[i]
-            print "        " + self.tickers[i]
-            try:
-                last_price = self.lastPrices[self.tickers[i]]
-            except:
-                continue
-            # last_price = str("%.2f" % last_price)
-            if last_price < lo:
-                mid = bcolors.RED + str(last_price) + bcolors.ENDC
-            elif last_price > hi:
-                mid = bcolors.GREEN + str(last_price) + bcolors.ENDC
-            else:
-                if lo + ((estim - lo) / 2.) < last_price and last_price < hi - ((hi - estim) / 2.):
-                    mid = str(last_price)
-                elif last_price < lo + ((estim - lo) / 2.):
-                    mid = bcolors.YELLOW + str(last_price) + bcolors.ENDC
-                elif last_price > hi - ((hi - estim) / 2.):
-                    mid = bcolors.BLUE + str(last_price) + bcolors.ENDC
-            estims = np.array([float(release.body[i]) for release in self.news_releases]) 
-            avg = np.sum(weights * estims)
-            print (str(self.lower[i]) + 
-                   " - " + 
-                   ("%.2f" % lo) + 
-                   " - " + 
-                   mid +
-                   " (" + 
-                   ("%.2f" % avg) + 
-                   ")" +
-                   " - " + 
-                   ("%.2f" % hi) + 
-                   " - " +  
-                   str(self.upper[i]) + "\n")
-        for i in range(len(self.tickers)):
-            print self.tickers[i]
-            estims = np.array([float(release.body[i]) for release in self.news_releases]) 
-            try:
-                print str(repr(estims))
-            except ZeroDivisionError:
-                print ""
 
         return None
 
