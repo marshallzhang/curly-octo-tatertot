@@ -159,7 +159,7 @@ class BaseBot(object):
         })
 
         self.ws = create_connection(
-            'ws://m.angocore.com/%s/%s' % (self.trader_id, self.password),
+            'ws://d.angocore.com/%s/%s' % (self.trader_id, self.password),
             timeout=0.5,
         )
         self.outbox = Queue()

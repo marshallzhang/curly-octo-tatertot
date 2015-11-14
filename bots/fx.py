@@ -26,18 +26,18 @@ class FXBot(BaseBot):
                 spread = offer.p - bid.p
                 pos = self.positions[ticker]
                 if pos > 500:
-                    b_mult = 0.02
+                    b_mult = 0.10
                     a_mult = 0.30
                     bq = 1
                     aq = 2
                 elif pos < 500:
                     b_mult = 0.30
-                    a_mult = 0.02
+                    a_mult = 0.10
                     bq = 2
                     aq = 1
                 else:
-                    b_mult = 0.02
-                    a_mult = 0.02
+                    b_mult = 0.10
+                    a_mult = 0.10
                     aq = 1
                     bq = 1
                     
@@ -46,18 +46,10 @@ class FXBot(BaseBot):
                     #pennyable 
                     orderbuy = {'ticker' : ticker, 'buy': True, 'quantity': 254 * bq, 'price': bid.p+(spread * b_mult)}
                     ordersell = {'ticker' : ticker, 'buy': False, 'quantity': 253 * aq, 'price': offer.p-(spread * a_mult)}
-                    if ticker == "CHFJPY":
-                        pp.pprint((bid.p, orderbuy))
-                        pp.pprint((offer.p, ordersell))
-                        pp.pprint(self.positions[ticker])
-                        
                     orders.append(orderbuy)
                     orders.append(ordersell)
         return orders
 
-
-        # ORDERS IS A LIST, CONTAINING DICTIONARIES OF THE FORM BELOW
-        return 0
 
 
     # # An example momentum strategy.
@@ -110,9 +102,6 @@ class FXBot(BaseBot):
         super(FXBot, self).process(msg)
         if msg is not None:
             self.fx_update_state(msg)
-        state_update = input()
-        if state_update:
-            self.state =  state_update
         orders = []
         print self.state
         if (self.started and time() - self.lastActionTime >
