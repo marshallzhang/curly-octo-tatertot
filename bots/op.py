@@ -2,124 +2,87 @@ from base import *
 
 pp = pprint.PrettyPrinter(depth = 6)
 
+def N(x, mean, sd):
+    return((1.0 + math.erf((float(x) - mean) / (float(sd) * sqrt(2.0)))) / 2)
+
+def Np(x, mean, sd):
+    var = float(sd)**2
+    pi = 3.1415926
+    denom = (2*pi*var)**.5
+    num = math.exp(-(float(x)-float(mean))**2/(2*var))
+    return num/denom
+
+class OptionSec():
+
+    def __init__(self, ticker, K):
+        self.ticker = ticker
+        self.K = K
+        self.order_book = []
+        self.P = 0.
+        self.S = 0.
+        self.t = 0.
+
+    def update(bids, asks, lastPrice, underPrice, time):
+        self.order_book = OrderBook(bids, asks)
+        self.lastPrice = lastPrice
+        self.underPrice = underPrice
+        self.t = time
+
+        
+class Call(OptionSec):
+    def BS(S, K, t, sigma):
+        d1 = math.log(S / float(K))
+
+    def delta(self):
+
+    def gamma(self):
+
+    def vega(self):
+
+    def theta(self):
+
+
+class Put(OptionSec):
+
 class OPBot(BaseBot):
 
     # If you want to keep track of any information in
     # addition to that stored in BaseBot, feel free to
     # update this init function as necessary.
     def __init__(self):
-        super(PDBot, self).__init__()
-        self.news_releases = []
+        super(OPBot, self).__init__()
+        self.market = {}
 
-        self.true_prices = [40., 60., 85., 60., 40.]
-        self.init_prices = [40., 60., 85., 60., 40.]
-        self.ses = [10., 20., 15., 20., 20.]
+    def isCall(self, ticker):
+        return(ticker[0] == "C")
 
-        self.corr = np.array([[1., -0.64372484, 0.09173378, -0.25319211, 0.6453473],
-                              [-0.64372484, 1., -0.65889412, 0.50111104, -0.12582015],
-                              [0.09173378,-0.65889412,1.,-0.19964734,-0.17288262],
-                              [-0.25319211,0.50111104,-0.19964734,1.,-0.37187632],
-                              [0.6453473,-0.12582015,-0.17288262,-0.37187632,1.]])
-
-        self.lower = [30., 40., 70., 40., 20.]
-        self.upper = [50., 80., 100., 80., 60.]
-
-        self.tickers = [u"EXE", u"CPP", u"HS", u"PYPY", u"RB"]
-
-        self.sources = []
-
-        self.true_qs = []
-
-        self.possible_q = [0.5, 0.7, 1.3, 3.5]
-
-        self.tp = [42, 60, 79.9, 56, 44]
-
-        self.accept = 0
-
-
-    def likelihood(self, theta):
-        posited_prices = list(theta[:5])
-        posited_qs = list(theta[5:])
-        len_news = len(self.news_releases)
-        len_p = len(posited_prices)
-        len_q = len(posited_qs)
-        
-        lik = np.zeros(len_news + len_p + len_q)
-        for i, release in enumerate(self.news_releases):
-            try:
-                lik[i] = math.log(stats.multivariate_normal.pdf(release.body, 
-                                                mean = posited_prices, 
-                                                cov = math.pow(posited_qs[self.sources.index(release.source)], 2) * self.corr * (600 - float(release.time)) / 60))
-            except:
-                lik[i] = -99999.
-
-        for i in range(len(self.upper)):
-            up = self.upper[i]
-            lo = self.lower[i]
-            if lo < posited_prices[i] and posited_prices[i] < up:
-                lik[i + len_news] = math.log(1 / float(self.upper[i] - self.lower[i]))
-            else:
-                lik[i + len_news] = -99999.
-
-        for i in range(len(posited_qs)):
-            try:
-                lik[i + len_news + len_p] = (2/3.) * math.exp(-((2/3.) * posited_qs[i]))
-            except:
-                lik[i + len_news + len_p] = -99999.
-        return(sum(lik))
-        
-    def mcmc(self, start, unique_qs, iterations, burn):
-        draws = np.zeros((iterations + 1, 5 + unique_qs)) 
-        draws[0, :] = start
-        accept = 0
-        for i in range(iterations):
-            proposal = np.random.multivariate_normal(mean = draws[i, :5], cov = 0.2 * np.diag([1,1,1,1,1]))
-            mv_q = np.random.multivariate_normal(mean = draws[i, 5:], cov = 0.07 * np.diag([1 for x in range(unique_qs)]))
-            proposal = np.append(proposal, mv_q)
-
-            alpha = min(0, self.likelihood(proposal) - self.likelihood(draws[i, :]))
-            if math.log(np.random.random()) < alpha:
-                draws[i + 1, :] = proposal
-                accept += 1
-            else:
-                draws[i + 1, :] = draws[i, :]
-        self.accept = accept / float(iterations)
-        return(draws[burn::10,:])
-
-    # Updates the bot's internal state according
-    # to trader and market updates from the server.
-    # Feel free to modify this method according to how
-    # you want to keep track of your internal state.
     def update_state(self, msg):
-        super(PDBot, self).update_state(msg)
+        super(OPBot, self).update_state(msg)
 
     def pd_update_state(self, msg):
+        if msg.get('market_states'):
+            for ticker, state in msg['market_states'].iteritems():
+                if self.isCall(ticker):
+                    self.calls[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+                else:
+                    self.puts[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+        if msg.get('market_state'):
+            state = msg['market_stsate']
+            ticker = state['ticker'][1:]
+            if self.isCall(state['ticker']):
+                self.calls[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+            else:
+                self.puts[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+
         if msg.get('news'):
             body = msg['news']['body'].split('; ')
             body = [float(x.split(" estimated to be worth ")[1]) for x in body]
-            self.news_releases.extend([NewsRelease(msg['news']['source'], msg['news']['time'], body)])
-            if msg['news']['source'] not in self.sources:
-                self.sources.extend([msg['news']['source']])
-                self.true_qs.extend([1.5])
-
-            if msg['news']['time'] < 10:
-                return
-            unique_qs = len(set([releases.source for releases in self.news_releases]))
-            draws = self.mcmc(self.init_prices + self.true_qs, unique_qs, 6000, 500)
-            colmeans = np.mean(draws, axis = 0)
-            colses = np.std(draws, axis = 0)
-            self.true_prices = list(colmeans[:5])
-            self.ses = list(colses[:5])
-            self.true_qs = list(colmeans[5:])
-            pp.pprint(self.true_prices)
-            pp.pprint(self.ses)
-            pp.pprint(self.true_qs)
 
     # Overrides the BaseBot process function.
     # Modify this function if you want your bot to
     # execute a strategy.
     def process(self, msg):
-        super(PDBot, self).process(msg)
+        super(OPBot, self).process(msg)
         if msg is not None:
             self.pd_update_state(msg)
         os.system('cls' if os.name == 'nt' else 'clear')
