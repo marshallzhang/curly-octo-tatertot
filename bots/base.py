@@ -90,10 +90,17 @@ class OrderBook():
         self.offers = sorted(self.offers, key = lambda x : x.p)
 
     def bestBid(self):
-        return(self.bids[0])
+        if len(self.bids) == 0:
+            return(Bid(0.,0.))
+        else:
+            return(self.bids[0])
+
 
     def bestOffer(self):
-        return(self.offers[0])
+        if len(self.offers) == 0:
+            return(Offer(10000., 0.))
+        else:
+            return(self.offers[0])
 
     def update(self, trade):
         # todo
