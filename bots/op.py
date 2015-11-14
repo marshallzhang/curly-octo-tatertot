@@ -107,12 +107,20 @@ class OPBot(BaseBot):
                             "T100C" : Call("T100C", 100),
         }
         self.put_ladder = {}
+        self.tamit = OrderBook()
 
+    
     def isCall(self, ticker):
         return(ticker.endswith("C"))
 
     def update_state(self, msg):
         super(OPBot, self).update_state(msg)
+
+
+    def putcallparity(self, edge):
+
+
+
 
     def pd_update_state(self, msg):
         if msg.get('market_states'):
