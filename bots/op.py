@@ -23,13 +23,13 @@ class OptionSec():
         self.S = 0.
         self.t = 0.
         self.IV = 0.
-        self.T = 7.5
+        self.T = 450
 
     def update(self, bids, asks, lastPrice, underPrice, time):
         self.order_book = OrderBook(bids, asks)
         self.P = lastPrice
         self.S = underPrice
-        self.t = time/60.
+        self.t = time
 
     def d1(self, sigma):
         top = math.log(self.S/float(self.K)) + ((float(sigma)**2)/2.)*float(self.T-self.t)
@@ -61,6 +61,8 @@ class Call(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
+        if self.t < 5 or self.t > 450:
+            return 1.
         vega = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
         return(vega)
 
@@ -70,14 +72,19 @@ class Call(OptionSec):
         return(top/bottom)
 
     def updateIV(self):
-        init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
-        if self.t > 7.5 or self.t < 0.1:
-            self.IV = 2.
-        else:
-            for i in range(50):
-                init_sig = init_sig - ((self.BS(init_sig) - self.P) / self.vega(init_sig))
-                print init_sig
-            self.IV = init_sig
+        try:
+            init_sig = 0.5/100
+            if self.t > 450 or self.t < 5:
+                self.IV = 0.5 / 100.
+            else:
+                for i in range(50):
+                    init_sig = init_sig - ((self.BS(init_sig) - self.P) / (100. * self.vega(init_sig)))
+                if abs(self.IV - init_sig) < 0.4 / 100.:
+                    self.IV = init_sig
+                else:
+                    self.IV = self.IV
+        except:
+            self.IV = self.IV
 
 class Put(OptionSec):
 
@@ -89,7 +96,7 @@ class Put(OptionSec):
         return(abs(self.BS(sigma) - self.P)**2)
 
     def delta(self, sigma):
-        return(N(self.d1(sigma)))
+        return(N(self.d1(sigma)) - 1)
 
     def gamma(self, sigma):
         top = Np(self.d1(sigma))
@@ -98,6 +105,8 @@ class Put(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
+        if self.t < 5 or self.t > 450:
+            return 1.
         vega = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
         return(vega)
 
@@ -107,11 +116,20 @@ class Put(OptionSec):
         return(top/bottom)
 
     def updateIV(self):
-        init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
+
         try:
-            self.IV = scipy.optimize.minimize(self.optBS, init_sig).x
+            init_sig = 0.5/100
+            if self.t > 450 or self.t < 1:
+                self.IV = 0.5 / 100.
+            else:
+                for i in range(50):
+                    init_sig = init_sig - ((self.BS(init_sig) - self.P) / (100. * self.vega(init_sig)))
+                if abs(self.IV - init_sig) < 0.4 / 100.:
+                    self.IV = init_sig
+                else:
+                    self.IV = self.IV
         except:
-            self.IV = 0.
+            self.IV = self.IV
 
 class OPBot(BaseBot):
 
@@ -136,6 +154,9 @@ class OPBot(BaseBot):
 
         self.tamit = []
         self.start = 0.
+        self.times = []
+        self.tamit_history = []
+        self.rv = 0.
 
 
     def isCall(self, ticker):
@@ -164,12 +185,12 @@ class OPBot(BaseBot):
         right1 = self.tamit.bestOffer().p - call.K 
         if left1 > right1: 
             #TO DO BUY RIGHT, SELL K 
-            todo1 = {'sell': call.ticker, 'buy': put.ticker, 'BUY': 'TMXFUT', 'edge': left1 - right1}
+            todo1 = {'sell': call.ticker, 'buy': put.ticker, 'BUY': 'TMXFUT', 'edge': 1000 * (left1 - right1) / (call.vega(call.IV) + put.vega(put.IV))}
             return(todo1)
         left2 = call.order_book.bestOffer().p - put.order_book.bestBid().p
         right2 = self.tamit.bestBid().p - call.K 
         if left2 < right2: 
-            todo2 = {'buy': call.ticker, 'sell': put.ticker, 'SELL': 'TMXFUT', 'edge': left2 - right2}
+            todo2 = {'buy': call.ticker, 'sell': put.ticker, 'SELL': 'TMXFUT', 'edge': 1000 *(left2 - right2) / (call.vega(call.IV) + put.vega(put.IV))}
             return(todo2)
         return None
 
@@ -182,7 +203,6 @@ class OPBot(BaseBot):
     def portGreeks(self):
         delta = 0.
         vega = 0.
-        print self.positions.items()
         for ticker, quantity in self.positions.items():
             if ticker == "TMXFUT":
                 delta += quantity
@@ -201,13 +221,21 @@ class OPBot(BaseBot):
                     vega = vega
         return {"delta" : delta, "vega" : vega}
 
+    def calcRV(self):
+        logret = [math.log(self.tamit_history[i] / float(self.tamit_history[i-1])) for i in range(max(1,len(self.tamit_history) - 60), len(self.tamit_history))]
+        sqlogret = [x**2. for x in logret]
+        if len(logret) > 2:
+            self.rv = math.sqrt((1 / float(len(sqlogret))) * sum(sqlogret) * 2)
+        else:
+            self.rv = 0.
+
     def pd_update_state(self, msg):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
                 if ticker == "TMXFUT":
                     self.tamit = OrderBook(state['bids'], state['asks'])
                 elif "INDEX" in ticker:
-                    continue
+                    self.tamit_history.append(self.lastPrices["TAMITINDEX"])
                 else:
                     if self.isCall(ticker):
                         call = self.call_ladder[self.getK(ticker)]
@@ -233,7 +261,8 @@ class OPBot(BaseBot):
             if ticker == "TMXFUT":
                 self.tamit = OrderBook(state['bids'], state['asks'])
             elif "INDEX" in ticker:
-                return None
+                self.tamit_history.append(self.lastPrices["TAMITINDEX"])
+                self.times.append(time.time() - self.start)
             else:
                 if self.isCall(ticker):
                     call = self.call_ladder[self.getK(ticker)]
@@ -261,14 +290,15 @@ class OPBot(BaseBot):
             self.pd_update_state(msg)
             arbs = self.pcParity()
             greeks = self.portGreeks()
+            self.calcRV()
 
 
             # PRINT DASHBOARD
             os.system('cls' if os.name == 'nt' else 'clear')
             try:
                 print((" " * 32 + "TAMIT: ")  + ("%.0f" % (self.lastPrices["TAMITINDEX"])))
-                c = self.call_ladder[90]
-                print(c.S, c.K, c.t, c.P)
+                print((" " * 33 + "RV: ")  + ("%.2f" % (self.rv * 100)))
+                print((" " * 26 + "SCALED RV: ")  + ("%.2f" % (self.rv * 100 / 5.)))
             except:
                 x = 0
             topcalls = '{0: >30}'.format("CALLS")
@@ -277,11 +307,16 @@ class OPBot(BaseBot):
                 calls = '{0: >30}'.format("(%.2f, %.2f)" % (call.P, call.IV * 100))
                 puts = '{0: <17}'.format("(%.2f, %.2f)" % (put.IV * 100, put.P))
                 print calls +  "  | " + '{0: <7}'.format(str(call.K)) + "|  " + puts
+            print("\n")
+            print(" " * 17 + "PORTFOLIO GREEKS")
+            for k,v in greeks.items():
+                print(" " * 17 + repr((k,v)))
+            print("\n")
             print((" " * 17 + "PUT CALL PARITY "))
             #for arb in arbs.values():
                 #print arb
             topline = '{0: >30}'.format("BUY")
-            print topline + " " * 10 + "SELL" + " " * 10 + "EDGE"
+            print topline + " " * 10 + "SELL" + " " * 10 + "EDGE/VEGA"
             try:
                 for todo in sorted(arbs.values(), key = lambda x : x["edge"], reverse = True): #arb.values() is a list
                     if 'BUY' in todo.keys():
@@ -297,13 +332,9 @@ class OPBot(BaseBot):
             except:
                 x = 0
 
-            #PC arb dashboard 
 
 
 
-            print(" " * 17 + "PORTFOLIO GREEKS")
-            for k,v in greeks.items():
-                print(k,v)
         return None
 
 
