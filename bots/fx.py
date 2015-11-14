@@ -9,6 +9,7 @@ class FXBot(BaseBot):
     def __init__(self):
         super(FXBot, self).__init__()
         self.order_books = {}
+        self.state = 0
 
     # An example market making strategy.
     # Returns the orders the bots should execute.
@@ -17,64 +18,46 @@ class FXBot(BaseBot):
         orders = []
         for ticker in tickers: 
             orderbook = self.order_books[ticker]
-            
             if len(orderbook.bids) == 0 or len(orderbook.offers) == 0:
-                print "LENGTH 0 ORDERBOOKS"
                 return []
             else:
                 offer = orderbook.bestBid()
                 bid = orderbook.bestOffer()
-                print (offer.p, bid.p)
+                spread = offer.p - bid.p
+                pos = self.positions[ticker]
+                if pos > 500:
+                    b_mult = 0.02
+                    a_mult = 0.30
+                    bq = 1
+                    aq = 2
+                elif pos < 500:
+                    b_mult = 0.30
+                    a_mult = 0.02
+                    bq = 2
+                    aq = 1
+                else:
+                    b_mult = 0.02
+                    a_mult = 0.02
+                    aq = 1
+                    bq = 1
+                    
+
                 if (offer.p  - bid.p) > 0: #(order-1)-(bid+1)
                     #pennyable 
-                    print "IM IN!"
-                    orderbuy = {'ticker' : ticker, 'buy': True, 'quantity': 100, 'price': bid.p+0.01}
-                    ordersell = {'ticker' : ticker, 'buy': False, 'quantity': 100, 'price': offer.p-0.01}
+                    orderbuy = {'ticker' : ticker, 'buy': True, 'quantity': 254 * bq, 'price': bid.p+(spread * b_mult)}
+                    ordersell = {'ticker' : ticker, 'buy': False, 'quantity': 253 * aq, 'price': offer.p-(spread * a_mult)}
+                    if ticker == "CHFJPY":
+                        pp.pprint((bid.p, orderbuy))
+                        pp.pprint((offer.p, ordersell))
+                        pp.pprint(self.positions[ticker])
+                        
                     orders.append(orderbuy)
                     orders.append(ordersell)
-                    print "IN THE PENNY FUNCTION"
-                    print orders
         return orders
 
 
         # ORDERS IS A LIST, CONTAINING DICTIONARIES OF THE FORM BELOW
         return 0
-
-    def scale(self):
-        return 0
-
-    def take(self):
-        return 0
-        
-    # def marketMake(self):
-    #     orders = []
-
-    #     for ticker, position in self.positions.iteritems():
-    #         lastPrice = self.lastPrices[ticker]
-
-    #         if abs(position) > self.options.get('position_limit'):
-    #             orders.append({
-    #                 'ticker': ticker,
-    #                 'buy': position < 0,
-    #                 'quantity': abs(position),
-    #                 'price': lastPrice * (1.5 if position < 0 else 0.5),
-    #             })
-    #         else:
-    #             if ticker in self.topBid:
-    #                 orders.append({
-    #                     'ticker': ticker,
-    #                     'buy': True,
-    #                     'quantity': self.options.get('order_quantity'),
-    #                     'price': self.topBid[ticker] + 0.01,
-    #                 })
-    #             if ticker in self.topAsk:
-    #                 orders.append({
-    #                     'ticker': ticker,
-    #                     'buy': False,
-    #                     'quantity': self.options.get('order_quantity'),
-    #                     'price': self.topAsk[ticker] - 0.01,
-    #                 })
-    #     return orders
 
 
     # # An example momentum strategy.
@@ -127,7 +110,11 @@ class FXBot(BaseBot):
         super(FXBot, self).process(msg)
         if msg is not None:
             self.fx_update_state(msg)
+        state_update = input()
+        if state_update:
+            self.state =  state_update
         orders = []
+        print self.state
         if (self.started and time() - self.lastActionTime >
                 self.options.get('delay')):
             self.lastActionTime = time()
@@ -135,9 +122,6 @@ class FXBot(BaseBot):
             # XXX: Your strategies go here
             # examples:
             orders.extend(self.penny())
-            print "OUTSIDE"
-            print self.penny()
-            print orders
             # orders.extend(self.marketMake())
             # orders.extend(self.momentum())
 

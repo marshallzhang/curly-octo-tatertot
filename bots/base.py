@@ -142,8 +142,9 @@ class OrderBook():
 
 class BaseBot(object):
     # XXX change me for actual running
-    trader_id = 'trader0'
-    password = 'trader0'
+
+    trader_id = 'mxzhang@college.harvard.edu'
+    password = 'around-afferent-programs'
 
     # Sets up the connection to the server.
     # Please do not change anything here unless
@@ -158,7 +159,7 @@ class BaseBot(object):
         })
 
         self.ws = create_connection(
-            'ws://localhost:10914/%s/%s' % (self.trader_id, self.password),
+            'ws://m.angocore.com/%s/%s' % (self.trader_id, self.password),
             timeout=0.5,
         )
         self.outbox = Queue()

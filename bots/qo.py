@@ -20,7 +20,7 @@ class PDBot(BaseBot):
     # update this init function as necessary.
     def __init__(self):
         super(PDBot, self).__init__()
-        self.news_releases = []
+        self.current_news = ""
         self.current_prediction = 0.
 
     # Updates the bot's internal state according
@@ -33,7 +33,8 @@ class PDBot(BaseBot):
     def pd_update_state(self, msg):
         if msg.get('news'):
             body = msg['news']['headline'].split('; ')
-            body = {x.split(" estimated to be ")[0] : (float(x.split(" estimated to be ")[1]) for x in body}
+            body = {x.split(" estimated to be ")[0] : (float(x.split(" estimated to be ")[1])) for x in body}
+            self.current_news = body
             #regression output
             coeff_prod = {k: v* body[k] for k, v in coeffs.items() if k in body}
             new_pred = coeffs['Inter']+ sum(coeff_prod.values())
@@ -47,9 +48,8 @@ class PDBot(BaseBot):
         if msg is not None:
             self.pd_update_state(msg)
         os.system('cls' if os.name == 'nt' else 'clear')
-        print(str(self.accept) + "\n")
-
-        print("PREDICTION: " + self.current_prediction)
+        pp.pprint(self.current_news)
+        pp.pprint("PREDICTION: " + str(self.current_prediction))
 
 if __name__ == '__main__':
     bot = PDBot()
