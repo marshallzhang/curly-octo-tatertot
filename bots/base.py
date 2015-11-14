@@ -14,6 +14,7 @@ import math
 import pprint
 import os
 import operator
+import scipy
 
 pp = pprint.PrettyPrinter(depth = 6)
 

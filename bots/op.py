@@ -43,8 +43,8 @@ class Call(OptionSec):
     def theta(self):
 
     def updateIV(self):
-        init_sig = math.sqrt(2 * 3.14 / 
-
+        init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
+        self.IV = scipy.optimize.newton(self.BS, init_sig, tol = 1.0e-6,  maxiter=50, fprime = self.vega)
 
 class Put(OptionSec):
 
@@ -55,10 +55,16 @@ class OPBot(BaseBot):
     # update this init function as necessary.
     def __init__(self):
         super(OPBot, self).__init__()
-        self.market = {}
+        self.call_ladder = {"T90C" : Call("T90C", 90),
+                            "T95C" : Call("T95C", 95),
+                            "T100C" : Call("T100C", 100),
+                            "T110C" : Call("T100C", 100),
+                            "T100C" : Call("T100C", 100),
+        }
+        self.put_ladder = {}
 
     def isCall(self, ticker):
-        return(ticker[0] == "C")
+        return(ticker.endswith("C"))
 
     def update_state(self, msg):
         super(OPBot, self).update_state(msg)
@@ -67,9 +73,9 @@ class OPBot(BaseBot):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
                 if self.isCall(ticker):
-                    self.calls[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+                    self.call_ladder[ticker] = OrderBook(state['bids'], state['asks'])
                 else:
-                    self.puts[ticker[1:]] = OrderBook(state['bids'], state['asks'])
+                    self.put_ladder[ticker] = OrderBook(state['bids'], state['asks'])
         if msg.get('market_state'):
             state = msg['market_stsate']
             ticker = state['ticker'][1:]
