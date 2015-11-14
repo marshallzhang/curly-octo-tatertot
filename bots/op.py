@@ -1,9 +1,10 @@
 from base import *
+import time
 
 pp = pprint.PrettyPrinter(depth = 6)
 
 def N(x, mean=0, sd=1):
-    return((1.0 + math.erf((float(x) - mean) / (float(sd) * sqrt(2.0)))) / 2)
+    return((1.0 + math.erf((float(x) - mean) / (float(sd) * math.sqrt(2.0)))) / 2)
 
 def Np(x, mean=0, sd=1):
     var = float(sd)**2
@@ -29,7 +30,6 @@ class OptionSec():
         self.P = lastPrice
         self.S = underPrice
         self.t = time/60.
-        self.updateIV()
 
     def d1(self, sigma):
         top = math.log(self.S/float(self.K)) + ((float(sigma)**2)/2.)*float(self.T-self.t)
@@ -38,7 +38,7 @@ class OptionSec():
         return(d1)
 
     def d2(self, sigma):
-        d2 = float(self.d1) - sigma * math.sqrt(self.T-self.t)
+        d2 = float(self.d1(sigma)) - sigma * math.sqrt(self.T-self.t)
         return(d2)
 
 
@@ -47,6 +47,9 @@ class Call(OptionSec):
     def BS(self, sigma):
         C = N(self.d1(sigma))*self.S - N(self.d2(sigma)) * self.K
         return(C)
+
+    def optBS(self, sigma):
+        return(abs(self.BS(sigma) - self.P)**2)
 
     def delta(self, sigma):
         return(N(self.d1(sigma)))
@@ -58,7 +61,7 @@ class Call(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
-        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
+        vega = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
         return(vega)
 
     def theta(self, sigma):
@@ -68,12 +71,19 @@ class Call(OptionSec):
 
     def updateIV(self):
         init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
-        self.IV = scipy.optimize.newton(self.BS, init_sig, tol = 1.0e-6,  maxiter=50, fprime = self.vega)
+        try:
+            self.IV = scipy.optimize.minimize(self.optBS, init_sig).x
+        except:
+            self.IV = 0.
 
 class Put(OptionSec):
-     def BS(self, sigma):
+
+    def BS(self, sigma):
         P = N(-1.*self.d2(sigma)) * self.K - N(-1.*self.d1(sigma)) * self.S
         return(P)
+
+    def optBS(self, sigma):
+        return(abs(self.BS(sigma) - self.P)**2)
 
     def delta(self, sigma):
         return(N(self.d1(sigma)))
@@ -85,7 +95,7 @@ class Put(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
-        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
+        vega = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
         return(vega)
 
     def theta(self, sigma):
@@ -95,7 +105,10 @@ class Put(OptionSec):
 
     def updateIV(self):
         init_sig = math.sqrt(2 * 3.14 / 7.5) * (self.P / self.S)
-        self.IV = scipy.optimize.newton(self.BS, init_sig, tol = 1.0e-6,  maxiter=50, fprime = self.vega)
+        try:
+            self.IV = scipy.optimize.minimize(self.optBS, init_sig).x
+        except:
+            self.IV = 0.
 
 class OPBot(BaseBot):
 
@@ -119,6 +132,7 @@ class OPBot(BaseBot):
         }
 
         self.tamit = []
+        self.start = 0.
 
 
     def isCall(self, ticker):
@@ -130,67 +144,82 @@ class OPBot(BaseBot):
     def update_state(self, msg):
         super(OPBot, self).update_state(msg)
 
-
-    def pcParity(self, edge):
+    def pcParity(self):
+        if self.tamit == []:
+            return {}
         strikes = self.call_ladder.keys()
         strikes = [int(k) for k in strikes]
+        arbs = {}
         for k in strikes: 
             #COMPARE
-            todo = self.pcCheck(self.call_ladder[k], self.put_ladder[k], edge)
-            print(todo)
+            arbs[k] = self.pcCheck(self.call_ladder[k], self.put_ladder[k])
+        return(arbs)
 
-
-    def pcCheck(call, put, edge ):
+    def pcCheck(self, call, put):
         #situation 1: C-P > S-K
-        left1 = call.order_book.bestBid() - put.order_book.bestOffer()
-        right1 = edge + self.tamit.order_book.bestOffer() - call.K 
+        left1 = call.order_book.bestBid().p - put.order_book.bestOffer().p
+        right1 = self.tamit.bestOffer().p - call.K 
         if left1 > right1: 
             #TO DO BUY RIGHT, SELL K 
-            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy'}
+            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy',"edge": left1 - right1}
             return(todo1)
-        left2 = call.order_book.bestOffer() - put.order_book.bestBid() + edge
-        right2 = self.tamit.order_book.bestBid() - call.K 
+        left2 = call.order_book.bestOffer().p - put.order_book.bestBid().p
+        right2 = self.tamit.bestBid().p - call.K 
         if left2 < right2: 
-            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'sell'}
+            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'sell', "edge": left2 - right2}
             return(todo2)
-
+        return None
 
     def pd_update_state(self, msg):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
                 if ticker == "TMXFUT":
                     self.tamit = OrderBook(state['bids'], state['asks'])
+                elif "INDEX" in ticker:
+                    continue
                 else:
                     if self.isCall(ticker):
-                        self.call_ladder[getK(ticker)].update(state['bids'], 
-                                                              state['asks'], 
-                                                              self.lastPrice[ticker], 
-                                                              self.lastPrice["TMXFUT"], 
-                                                              state['time'])
+                        call = self.call_ladder[self.getK(ticker)]
+                        call.update(state['bids'], 
+                                    state['asks'], 
+                                    self.lastPrices[ticker], 
+                                    self.lastPrices["TAMITINDEX"], 
+                                    time.time() - self.start)
+                        call.updateIV()
                     else:
-                        self.put_ladder[getK(ticker)].update(state['bids'], 
-                                                             state['asks'], 
-                                                             self.lastPrice[ticker], 
-                                                             self.lastPrice["TMXFUT"], 
-                                                             state['time'])
+                        put = self.put_ladder[self.getK(ticker)]
+                        put.update(state['bids'], 
+                                    state['asks'], 
+                                    self.lastPrices[ticker], 
+                                    self.lastPrices["TAMITINDEX"], 
+                                    time.time() - self.start)
+                        put.updateIV()
         if msg.get('market_state'):
-            state = msg['market_stsate']
-            ticker = state['ticker'][1:]
+            if self.start == 0.:
+                self.start = time.time()
+            state = msg['market_state']
+            ticker = state['ticker']
             if ticker == "TMXFUT":
                 self.tamit = OrderBook(state['bids'], state['asks'])
+            elif "INDEX" in ticker:
+                return None
             else:
                 if self.isCall(ticker):
-                    self.call_ladder[getK(ticker)].update(state['bids'], 
-                                                          state['asks'], 
-                                                          self.lastPrice[ticker], 
-                                                          self.lastPrice["TMXFUT"], 
-                                                          state['time'])
+                    call = self.call_ladder[self.getK(ticker)]
+                    call.update(state['bids'], 
+                                state['asks'], 
+                                self.lastPrices[ticker], 
+                                self.lastPrices["TAMITINDEX"], 
+                                time.time() - self.start)
+                    call.updateIV()
                 else:
-                    self.put_ladder[getK(ticker)].update(state['bids'], 
-                                                         state['asks'], 
-                                                         self.lastPrice[ticker], 
-                                                         self.lastPrice["TMXFUT"], 
-                                                         state['time'])
+                    put = self.put_ladder[self.getK(ticker)]
+                    put.update(state['bids'], 
+                                state['asks'], 
+                                self.lastPrices[ticker], 
+                               self.lastPrices["TAMITINDEX"], 
+                                time.time() - self.start)
+                    put.updateIV()
 
     # Overrides the BaseBot process function.
     # Modify this function if you want your bot to
@@ -199,7 +228,24 @@ class OPBot(BaseBot):
         super(OPBot, self).process(msg)
         if msg is not None:
             self.pd_update_state(msg)
-        os.system('cls' if os.name == 'nt' else 'clear')
+            arbs = self.pcParity()
+
+            # PRINT DASHBOARD
+            os.system('cls' if os.name == 'nt' else 'clear')
+            try:
+                print((" " * 32 + "TAMIT: ")  + ("%.0f" % (self.lastPrices["TAMITINDEX"])))
+            except:
+                x = 0
+            topcalls = '{0: >30}'.format("CALLS")
+            print topcalls + " " * 14 + "PUTS"
+            for call, put in zip(sorted(self.call_ladder.values(), key = lambda x : x.K), sorted(self.put_ladder.values(), key = lambda x : x.K)):
+                calls = '{0: >30}'.format("(%.2f, %.2f)" % (call.P, call.IV * 100))
+                puts = '{0: <17}'.format("(%.2f, %.2f)" % (put.IV * 100, put.P))
+                print calls +  "  | " + '{0: <7}'.format(str(call.K)) + "|  " + puts
+            print((" " * 17 + "PUT CALL PARITY "))
+            for arb in arbs.values():
+                print arb
+
 
         return None
 
