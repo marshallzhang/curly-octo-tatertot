@@ -109,7 +109,7 @@ class OPBot(BaseBot):
         self.put_ladder = {}
         self.tamit = OrderBook()
 
-    
+
     def isCall(self, ticker):
         return(ticker.endswith("C"))
 
@@ -117,9 +117,28 @@ class OPBot(BaseBot):
         super(OPBot, self).update_state(msg)
 
 
-    def putcallparity(self, edge):
+    def pcParity(self, edge):
+        strikes = self.call_ladder.keys()
+        strikes = [int(k) for k in strikes]
+        for k in strikes: 
+            #COMPARE
+            todo = self.pcCheck(self.call_ladder[k], self.put_ladder[k], edge)
+            print(todo)
 
 
+    def pcCheck(call, put, edge ):
+        #situation 1: C-P > S-K
+        left1 = call.order_book.bestBid() - put.order_book.bestOffer()
+        right1 = edge + self.tamit.order_book.bestOffer() - call.K 
+        if left1 > right1: 
+            #TO DO BUY RIGHT, SELL K 
+            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy'}
+            return(todo1)
+        left2 = call.order_book.bestOffer() - put.order_book.bestBid() + edge
+        right2 = self.tamit.order_book.bestBid() - call.K 
+        if left2 < right2: 
+            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'sell'}
+            return(todo2)
 
 
     def pd_update_state(self, msg):
