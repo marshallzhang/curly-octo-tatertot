@@ -134,6 +134,7 @@ class OPBot(BaseBot):
             #TO DO BUY RIGHT, SELL K 
             todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy'}
             return(todo1)
+        #situation 2
         left2 = call.order_book.bestOffer() - put.order_book.bestBid() + edge
         right2 = self.tamit.order_book.bestBid() - call.K 
         if left2 < right2: 
