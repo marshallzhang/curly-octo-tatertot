@@ -164,12 +164,12 @@ class OPBot(BaseBot):
         right1 = self.tamit.bestOffer().p - call.K 
         if left1 > right1: 
             #TO DO BUY RIGHT, SELL K 
-            todo1 = {call.ticker: 'sell', put.ticker: 'buy', 'TMXFUT': 'buy',"edge": left1 - right1}
+            todo1 = {'sell': call.ticker, 'buy': put.ticker, 'BUY': 'TMXFUT', 'edge': left1 - right1}
             return(todo1)
         left2 = call.order_book.bestOffer().p - put.order_book.bestBid().p
         right2 = self.tamit.bestBid().p - call.K 
         if left2 < right2: 
-            todo2 = {call.ticker: 'buy', put.ticker: 'sell', 'TMXFUT': 'sell', "edge": left2 - right2}
+            todo2 = {'buy': call.ticker, 'sell': put.ticker, 'SELL': 'TMXFUT', 'edge': left2 - right2}
             return(todo2)
         return None
 
@@ -278,8 +278,28 @@ class OPBot(BaseBot):
                 puts = '{0: <17}'.format("(%.2f, %.2f)" % (put.IV * 100, put.P))
                 print calls +  "  | " + '{0: <7}'.format(str(call.K)) + "|  " + puts
             print((" " * 17 + "PUT CALL PARITY "))
-            for arb in arbs.values():
-                print arb
+            #for arb in arbs.values():
+                #print arb
+            topline = '{0: >30}'.format("BUY")
+            print topline + " " * 10 + "SELL" + " " * 10 + "EDGE"
+            try:
+                for todo in sorted(arbs.values(), key = lambda x : x["edge"], reverse = True): #arb.values() is a list
+                    if 'BUY' in todo.keys():
+                        buys = '{0: >30}'.format(todo['buy'] +" , " + todo['BUY'])
+                    else: 
+                        buys = '{0: >30}'.format(todo['buy'])
+                    if 'SELL' in todo.keys():
+                        sells = '{0: >17}'.format(todo['sell'] +" , " + todo['SELL'])
+                    else: 
+                        sells = '{0: >17}'.format(todo['sell'])
+                    edge = '{0: >7}'.format(todo['edge'])
+                    print buys + " | " +  sells + " | " + edge
+            except:
+                x = 0
+
+            #PC arb dashboard 
+
+
 
             print(" " * 17 + "PORTFOLIO GREEKS")
             for k,v in greeks.items():
