@@ -191,6 +191,11 @@ class BaseBot(object):
         if msg.get('market_states'):
             for ticker, state in msg['market_states'].iteritems():
                 self.lastPrices[ticker] = state['last_price']
+                
+        if msg.get('market_state'):
+            state = msg['market_state']
+            ticker = state['ticker']
+            self.lastPrices[ticker] = state['last_price']
 
         if msg.get('message_type') == 'START':
             self.started = True

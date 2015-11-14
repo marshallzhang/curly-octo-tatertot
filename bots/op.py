@@ -12,6 +12,14 @@ def Np(x, mean, sd):
     num = math.exp(-(float(x)-float(mean))**2/(2*var))
     return num/denom
 
+def d1(S, K, r = 0, sigma, t):
+    top = math.log(S/K) + (r+(float(sigma)**2/float(2)))(T-t)
+    bottom = sigma * math.sqrt(T-t)
+    d1 = top/bottom 
+    return(d1)
+
+
+
 class OptionSec():
 
     def __init__(self, ticker, K):
@@ -28,7 +36,17 @@ class OptionSec():
         self.underPrice = underPrice
         self.t = time
 
-        
+    def d1(self, K, r = 0, sigma, t):
+        top = math.log(self.S/self.K) + (r+(float(sigma)**2/float(2)))(T-t)
+        bottom = sigma * math.sqrt(T-t)
+        d1 = top/bottom 
+        return(d1)
+
+    def d2(d1, sigma, t):
+    d2 = d1 - sigma * math.sqrt(T-t)
+
+
+
 class Call(OptionSec):
     def BS(S, K, t, sigma):
         d1 = math.log(S / float(K))
