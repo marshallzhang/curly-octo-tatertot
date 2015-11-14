@@ -12,14 +12,6 @@ def Np(x, mean=0, sd=1):
     num = math.exp(-(float(x)-float(mean))**2/(2*var))
     return num/denom
 
-def d1(S, K, r = 0, sigma, t):
-    top = math.log(S/K) + (r+(float(sigma)**2/float(2)))(T-t)
-    bottom = sigma * math.sqrt(T-t)
-    d1 = top/bottom 
-    return(d1)
-
-
-
 class OptionSec():
 
     def __init__(self, ticker, K):
@@ -66,8 +58,8 @@ class Call(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
-        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.T)
-        return(veg)
+        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
+        return(vega)
 
     def theta(self, sigma):
         top = -self.S * Np(self.d1(sigma)) * sigma 
@@ -93,8 +85,8 @@ class Put(OptionSec):
         return(gamma)
 
     def vega(self, sigma):
-        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.T)
-        return(veg)
+        veg = self.S * Np(self.d1(sigma)) * math.sqrt(self.T - self.t)
+        return(vega)
 
     def theta(self, sigma):
         top = -self.S * Np(self.d1(sigma)) * sigma 
