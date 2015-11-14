@@ -21,8 +21,9 @@ class OptionSec():
         self.P = 0.
         self.S = 0.
         self.t = 0.
+        self.IV = 0.
 
-    def update(bids, asks, lastPrice, underPrice, time):
+    def update(self, bids, asks, lastPrice, underPrice, time):
         self.order_book = OrderBook(bids, asks)
         self.lastPrice = lastPrice
         self.underPrice = underPrice
@@ -40,6 +41,9 @@ class Call(OptionSec):
     def vega(self):
 
     def theta(self):
+
+    def updateIV(self):
+        init_sig = math.sqrt(2 * 3.14 / 
 
 
 class Put(OptionSec):
